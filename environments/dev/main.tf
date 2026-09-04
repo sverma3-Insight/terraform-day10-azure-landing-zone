@@ -1,0 +1,90 @@
+terraform {
+  required_providers {
+    azurerm = { source = "hashicorp/azurerm", version = "~> 5.0.0" }
+  }
+  required_version = ">= 1.1.0"
+  backend "azurerm" {
+    resource_group_name  = "SV"
+    storage_account_name = "capestonestorageaccount"
+    container_name       = "tfstate-container"
+    key                  = "dev.tfstate"
+  }
+}
+provider "azurerm" {
+  features {}
+  client_id = var.client_id
+  client_secret = var.client_secret
+  subscription_id = var.subscription_id
+  tenant_id = var.tenant_id
+}
+
+locals { 
+  common_tags = { 
+    environment = "dev"
+    region = var.location
+    managed_by = "terraform" 
+    } 
+    }
+
+data "azurerm_virtual_network" "hub" { 
+  name = "VNET-Day10-Hub"
+  resource_group_name = "RG-Day10-Hub" 
+  }
+
+module "dev_rg" { 
+  source = "../../modules/resource-group"
+  resource_group_name = "RG-Day10-DEV"
+  location = var.location
+  tags = local.common_tags 
+  }
+
+module "dev_vnet" { 
+  source = "../../modules/vnet"
+  vnet_name = "VNET-Day10-DEV"
+  location = var.location
+  resource_group_name = module.dev_rg.resource_group_name
+  address_space = ["10.1.0.0/16"]
+  tags = local.common_tags 
+  }
+
+module "dev_subnets" {
+  source = "../../modules/subnet"
+  resource_group_name = module.dev_rg.resource_group_name
+  virtual_network_name = module.dev_vnet.vnet_name
+  subnets_var = var.dev_subnets_var
+}
+module "dev_nsg" { 
+  source = "../../modules/nsg"
+  environment = "dev"
+  location = var.location
+  resource_group_name = module.dev_rg.resource_group_name
+  subnet_ids = module.dev_subnets.subnet_ids
+  nsg_rules = var.nsg_rules
+  tags = local.common_tags 
+  }
+
+module "dev_route_table" { 
+  source = "../../modules/route-table"
+  environment = "dev"
+  location = var.location
+  resource_group_name = module.dev_rg.resource_group_name
+  subnet_ids = module.dev_subnets.subnet_ids
+  tags = local.common_tags 
+  }
+
+module "dev_to_hub" { 
+  source = "../../modules/vnet-peering"
+  peering_name = "dev-to-hub"
+  resource_group_name = module.dev_rg.resource_group_name
+  virtual_network_name = module.dev_vnet.vnet_name
+  remote_virtual_network_id = data.azurerm_virtual_network.hub.id 
+  }
+
+module "hub_to_dev" { 
+  source = "../../modules/vnet-peering"
+  peering_name = "hub-to-dev"
+  resource_group_name = data.azurerm_virtual_network.hub.resource_group_name
+  virtual_network_name = data.azurerm_virtual_network.hub.name
+  remote_virtual_network_id = module.dev_vnet.vnet_id
+  allow_gateway_transit = true 
+  }
