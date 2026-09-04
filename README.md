@@ -1,6 +1,6 @@
 # Terraform Day 10 - Azure Landing Zone
 
-Trainer-style multi-root project using reusable local modules.
+Azure Landing Zone implementation using Terraform with reusable modules, Hub-Spoke architecture, Governance policies, Azure Firewall, Azure Bastion, VPN Gateway, and environment segregation for DEV, TEST, and PROD.
 
 ## Deployment order
 1. Create the backend Resource Group, Storage Account and container manually in Azure Portal.
